@@ -6,7 +6,7 @@ import matter from "gray-matter";
 import kleur from "kleur";
 
 const program = new Command();
-program.name("mind").description(".mind/ command-line tools").version("0.1.0");
+program.name("mind").description(".mind/ command-line tools").version("0.1.1");
 
 const MIND = ".mind";
 
