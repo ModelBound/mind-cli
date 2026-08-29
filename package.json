@@ -1,6 +1,6 @@
 {
   "name": "@modelbound/mind-cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Command-line tools for the .mind/ specification.",
   "license": "Apache-2.0",
   "type": "module",
@@ -10,6 +10,7 @@
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
+    "test": "find src -name '*.test.ts' -print0 | xargs -0 -r node --test --import tsx",
     "prepublishOnly": "npm run build"
   },
   "publishConfig": {
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.4.0"
   },
   "engines": {

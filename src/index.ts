@@ -4,9 +4,13 @@ import { mkdirSync, writeFileSync, existsSync, readdirSync, readFileSync, statSy
 import { join, relative } from "node:path";
 import matter from "gray-matter";
 import kleur from "kleur";
+import { registerSkillLocal, ensureTaskBudgets } from "./commands/skillLocal.js";
+import { scaffoldSkillMarkdown } from "./lib/skillScaffold.js";
+import { buildScopeConstraintBlock } from "./lib/scopeSnippet.js";
+import { loadTaskBudgets } from "./lib/loadTaskBudgets.js";
 
 const program = new Command();
-program.name("mind").description(".mind/ command-line tools").version("0.1.1");
+program.name("mind").description(".mind/ command-line tools").version("0.2.0");
 
 const MIND = ".mind";
 
@@ -18,26 +22,42 @@ program
   .command("init")
   .description("Scaffold a new .mind/ folder in the current directory")
   .option("-a, --agent <name>", "agent name", "assistant")
+  .option("--no-scope", "omit scope-constraint block from starter skill")
   .action((opts) => {
     if (existsSync(MIND)) {
       console.error(kleur.red(`${MIND}/ already exists.`));
       process.exit(1);
     }
+    const cwd = process.cwd();
     ensureDir(MIND);
     ensureDir(join(MIND, "memory"));
     ensureDir(join(MIND, "skills"));
     ensureDir(join(MIND, "context"));
     ensureDir(join(MIND, "diff"));
+    ensureTaskBudgets(cwd);
+
+    const budgets = loadTaskBudgets(cwd);
+    const scopeBlock = opts.scope !== false ? `\n\n${buildScopeConstraintBlock(budgets)}` : "";
 
     writeFileSync(
       join(MIND, "INDEX.md"),
-      `---\nversion: 0.1\nagent: ${opts.agent}\n---\n\n# Index\n\n## Always read first\n- [self.md](self.md)\n\n## Route by intent\n- ask: "help me" → [skills/](skills/)\n`,
+      `---\nversion: 0.2\nagent: ${opts.agent}\n---\n\n# Index\n\n## Always read first\n- [self.md](self.md)\n\n## Route by intent\n- ask: "help me" → [skills/](skills/)\n`,
     );
     writeFileSync(
       join(MIND, "self.md"),
       `---\ntype: system-prompt\ntrust: human-reviewed\n---\n\n# Self\n\nYou are the ${opts.agent}. Describe your role, tone, and constraints here.\n`,
     );
-    console.log(kleur.green(`Created ${MIND}/`));
+    writeFileSync(
+      join(MIND, "skills", "example-skill.md"),
+      scaffoldSkillMarkdown({
+        name: "example-skill",
+        description: "Triggered when the user asks for help with a scoped coding task; walks through a bounded workflow.",
+        includeScope: opts.scope !== false,
+        cwd,
+      }),
+    );
+    console.log(kleur.green(`Created ${MIND}/ and .modelbound/task-budgets.json`));
+    if (scopeBlock) console.log(kleur.gray("Starter skill includes default scope constraints."));
   });
 
 function walk(dir: string): string[] {
@@ -145,13 +165,13 @@ program
       const { data, content } = matter(raw);
       files[relative(MIND, file)] = { frontmatter: data, body: content };
     }
-    const pack = { version: "0.1", packed_at: new Date().toISOString(), files };
+    const pack = { version: "0.2", packed_at: new Date().toISOString(), files };
     writeFileSync(opts.out, JSON.stringify(pack, null, 2));
     console.log(kleur.green(`Packed ${Object.keys(files).length} file(s) → ${opts.out}`));
   });
 
 program
-  .command("review")
+  .command("proposals")
   .description("List pending diff/ proposals awaiting human review")
   .action(() => {
     const diffDir = join(MIND, "diff");
@@ -182,5 +202,7 @@ program
     console.log(kleur.gray("Delegating to @modelbound/mind-mcp… (install it separately)"));
     console.log(kleur.cyan("  npx @modelbound/mind-mcp --root ."));
   });
+
+registerSkillLocal(program);
 
 program.parseAsync(process.argv);
